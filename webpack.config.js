@@ -3,38 +3,6 @@ const glob = require('glob')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 
-const INCLUDE_PATTERN = /<include src="(.+)"\s*\/?>(?:<\/include>)?/gi
-const processNestedHtml = (content, loaderContext, dir = null) =>
-  !INCLUDE_PATTERN.test(content)
-    ? content
-    : content.replace(INCLUDE_PATTERN, (m, src) => {
-        const filePath = path.resolve(dir || loaderContext.context, src)
-        loaderContext.dependency(filePath)
-        return processNestedHtml(
-          loaderContext.fs.readFileSync(filePath, 'utf8'),
-          loaderContext,
-          path.dirname(filePath)
-        )
-      })
-
-// HTML generation
-const paths = []
-const generateHTMLPlugins = () =>
-  glob.sync('./src/*.html').map((dir) => {
-    const filename = path.basename(dir)
-
-    if (filename !== '404.html') {
-      paths.push(filename)
-    }
-
-    return new HtmlWebpackPlugin({
-      filename,
-      template: `./src/${filename}`,
-      favicon: `./src/images/favicon.ico`,
-      inject: 'body',
-    })
-  })
-
 module.exports = {
   mode: 'development',
   entry: './src/js/index.js',
@@ -44,26 +12,18 @@ module.exports = {
     },
     compress: true,
     port: 3000,
+    historyApiFallback: true, // Enable React Router
+    hot: true
   },
   module: {
     rules: [
       {
-        test: /\.m?js$/,
+        test: /\.(js|jsx)$/,
         exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env'],
-            plugins: [
-              [
-                'prismjs',
-                {
-                  languages: ['javascript', 'css', 'markup'],
-                  plugins: ['copy-to-clipboard'],
-                  css: true,
-                },
-              ],
-            ],
+            presets: ['@babel/preset-env', '@babel/preset-react'],
           },
         },
       },
@@ -93,18 +53,15 @@ module.exports = {
       {
         test: /\.(woff|woff2|eot|ttf|otf)$/i,
         type: 'asset/resource',
-      },
-      {
-        test: /\.html$/,
-        loader: 'html-loader',
-        options: {
-          preprocessor: processNestedHtml,
-        },
-      },
+      }
     ],
   },
   plugins: [
-    ...generateHTMLPlugins(),
+    new HtmlWebpackPlugin({
+      template: './src/index.html',
+      favicon: './src/images/favicon.ico',
+      inject: 'body',
+    }),
     new MiniCssExtractPlugin({
       filename: 'style.css',
       chunkFilename: 'style.css',
@@ -115,7 +72,11 @@ module.exports = {
     path: path.resolve(__dirname, 'build'),
     clean: true,
     assetModuleFilename: '[path][name][ext]',
+    publicPath: '/'
   },
-  target: 'web', // fix for "browserslist" error message
-  stats: 'errors-only', // suppress irrelevant log messages
+  resolve: {
+    extensions: ['.js', '.jsx']
+  },
+  target: 'web',
+  stats: 'errors-only'
 }
